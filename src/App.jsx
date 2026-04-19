@@ -168,7 +168,8 @@ function mapDriverStandings(json) {
   return standingsList.map(s => {
     const d = s.Driver;
     const c = s.Constructors?.[0];
-    const code = DRIVER_ID_TO_CODE[d.driverId] || (d.code || d.driverId.substring(0, 3).toUpperCase());
+    // Prefer API's own 3-letter code; fall back to our table; last resort: derive from surname.
+    const code = d.code || DRIVER_ID_TO_CODE[d.driverId] || d.familyName.substring(0, 3).toUpperCase();
     const team = CONSTRUCTOR_ID_TO_TEAM[c?.constructorId] || c?.name || "Unknown";
     return {
       pos: parseInt(s.position, 10),
@@ -210,10 +211,12 @@ function mapConstructorStandings(json, drivers) {
 async function mapCompletedRaces(resultsJson) {
   const races = resultsJson?.MRData?.RaceTable?.Races || [];
   return races.map(r => {
-    const top3 = r.Results.slice(0, 3).map(res => DRIVER_ID_TO_CODE[res.Driver.driverId] || res.Driver.code || "?");
+    const top3 = r.Results.slice(0, 3).map(res =>
+      res.Driver.code || DRIVER_ID_TO_CODE[res.Driver.driverId] || res.Driver.familyName.substring(0, 3).toUpperCase()
+    );
     const results = {};
     r.Results.forEach(res => {
-      const code = DRIVER_ID_TO_CODE[res.Driver.driverId] || res.Driver.code;
+      const code = res.Driver.code || DRIVER_ID_TO_CODE[res.Driver.driverId] || res.Driver.familyName.substring(0, 3).toUpperCase();
       if (!code) return;
       const status = res.status;
       const pos = parseInt(res.position, 10);
@@ -269,9 +272,35 @@ function useLiveData() {
         const sprintRounds = new Set([2, 4, 5, 9, 12, 16]); // from UPCOMING/completed calendar
         const racesWithSprintFlag = liveRaces.map(r => ({ ...r, sprint: sprintRounds.has(r.round) }));
 
+        // Compute each driver's best finish and podium count from completed race results.
+        const driversWithForm = liveDrivers.map(d => {
+          let best = null;
+          let bestRace = "";
+          let podiums = 0;
+          racesWithSprintFlag.forEach(race => {
+            const pos = race.results[d.code];
+            if (typeof pos === "number") {
+              if (pos <= 3) podiums += 1;
+              if (best === null || pos < best) { best = pos; bestRace = race.short; }
+            }
+          });
+          return {
+            ...d,
+            best: best !== null ? `P${best}${bestRace ? " " + bestRace : ""}` : "—",
+            podiums,
+          };
+        });
+
+        // Recompute constructor podiums from their drivers.
+        const constructorsWithPodiums = liveConstructors.map(c => {
+          const teamDrivers = driversWithForm.filter(d => d.team === c.team);
+          const podiums = teamDrivers.reduce((sum, d) => sum + d.podiums, 0);
+          return { ...c, podiums };
+        });
+
         setState({
-          drivers: liveDrivers,
-          constructors: liveConstructors,
+          drivers: driversWithForm,
+          constructors: constructorsWithPodiums,
           races: racesWithSprintFlag.length > 0 ? racesWithSprintFlag : FALLBACK_COMPLETED_RACES,
           status: "live",
           lastUpdated: new Date(),
