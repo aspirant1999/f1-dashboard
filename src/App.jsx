@@ -251,9 +251,9 @@ function useLiveData() {
     (async () => {
       try {
         const [dJson, cJson, rJson] = await Promise.all([
-          fetchJSON(`${API_BASE}/driverstandings/`),
-          fetchJSON(`${API_BASE}/constructorstandings/`),
-          fetchJSON(`${API_BASE}/results/`),
+          fetchJSON(`${API_BASE}/driverStandings`),
+          fetchJSON(`${API_BASE}/constructorStandings`),
+          fetchJSON(`${API_BASE}/results`),
         ]);
         if (cancelled) return;
         const liveDrivers = mapDriverStandings(dJson);
