@@ -253,23 +253,43 @@ function useLiveData() {
     let cancelled = false;
     (async () => {
       try {
-        const [dJson, cJson, rJson] = await Promise.all([
-          fetchJSON(`${API_BASE}/driverStandings?limit=100`),
-          fetchJSON(`${API_BASE}/constructorStandings?limit=100`),
-          fetchJSON(`${API_BASE}/results?limit=500`),
+        // Fetch standings (compact responses, no pagination issues)
+        const [dJson, cJson] = await Promise.all([
+          fetchJSON(`${API_BASE}/driverStandings`),
+          fetchJSON(`${API_BASE}/constructorStandings`),
         ]);
         if (cancelled) return;
+
         const liveDrivers = mapDriverStandings(dJson);
         const liveConstructors = mapConstructorStandings(cJson, liveDrivers);
-        const liveRaces = await mapCompletedRaces(rJson);
 
         if (!liveDrivers || !liveConstructors) {
           setState(s => ({ ...s, status: "fallback" }));
           return;
         }
 
+        // Find how many rounds are completed (from standings data).
+        const completedRound = parseInt(dJson?.MRData?.StandingsTable?.round, 10) || 0;
+
+        // Fetch each completed race's results individually — avoids Jolpica's 100-item cap
+        // that truncates /results endpoint when total results > 100 (e.g. after race 5).
+        const raceResponses = [];
+        for (let round = 1; round <= completedRound; round++) {
+          try {
+            const raceJson = await fetchJSON(`${API_BASE}/${round}/results`);
+            raceResponses.push(raceJson);
+          } catch (_) {
+            // Skip rounds that fail (e.g. not yet in API)
+          }
+        }
+        if (cancelled) return;
+
+        // Flatten all races from all responses
+        const allRaces = raceResponses.flatMap(j => j?.MRData?.RaceTable?.Races || []);
+        const liveRaces = await mapCompletedRaces({ MRData: { RaceTable: { Races: allRaces } } });
+
         // Mark sprint races using our hardcoded calendar (source of truth for schedule).
-        const sprintRounds = new Set([2, 4, 5, 9, 12, 16]); // from UPCOMING/completed calendar
+        const sprintRounds = new Set([2, 4, 5, 9, 12, 16]);
         const racesWithSprintFlag = liveRaces.map(r => ({ ...r, sprint: sprintRounds.has(r.round) }));
 
         // Compute each driver's best finish and podium count from completed race results.
