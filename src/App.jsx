@@ -218,9 +218,12 @@ async function mapCompletedRaces(resultsJson) {
     r.Results.forEach(res => {
       const code = res.Driver.code || DRIVER_ID_TO_CODE[res.Driver.driverId] || res.Driver.familyName.substring(0, 3).toUpperCase();
       if (!code) return;
-      const status = res.status;
+      const status = res.status || "";
       const pos = parseInt(res.position, 10);
-      results[code] = (status && status !== "Finished" && !status.startsWith("+")) ? "DNF" : pos;
+      // A driver is classified as DNF only if they didn't finish the race (Retired, Did not start, Disqualified, Accident, etc).
+      // "Finished" and "Lapped" and "+N Lap(s)" all count as classified finishers with a real position.
+      const isClassifiedFinisher = status === "Finished" || status === "Lapped" || status.startsWith("+");
+      results[code] = isClassifiedFinisher ? pos : "DNF";
     });
     const dateObj = new Date(r.date);
     const country = r.Circuit.Location.country;
@@ -676,7 +679,7 @@ function Dashboard({ userName, driverCode, teamName, drivers: DRIVERS, construct
       </div>
 
       {/* HEADER */}
-      <header className="max-w-7xl mx-auto px-6 pt-8 pb-6">
+      <header className="max-w-7xl mx-auto px-4 md:px-6 pt-6 md:pt-8 pb-6">
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
             <div className="flex items-center gap-3 mb-2">
@@ -685,11 +688,11 @@ function Dashboard({ userName, driverCode, teamName, drivers: DRIVERS, construct
                 PERSONALIZED FOR {userName.toUpperCase()}
               </span>
             </div>
-            <h1 className="display text-6xl md:text-7xl leading-none">
+            <h1 className="display text-5xl md:text-7xl leading-none">
               <span className="text-white">PIT</span>{" "}
               <span style={{ color: primary }}>WALL</span>
             </h1>
-            <div className="bebas text-2xl mt-2 text-white/70">
+            <div className="bebas text-lg md:text-2xl mt-2 text-white/70 break-words">
               2026 SEASON · <span style={{ color: accent }}>#{myDriver.number} {myDriver.last.toUpperCase()}</span> ·{" "}
               <span style={{ color: primary }}>{teamName.toUpperCase()}</span>
             </div>
@@ -709,10 +712,10 @@ function Dashboard({ userName, driverCode, teamName, drivers: DRIVERS, construct
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 pb-20 grid grid-cols-12 gap-4">
+      <main className="max-w-7xl mx-auto px-3 md:px-6 pb-20 grid grid-cols-12 gap-3 md:gap-4">
 
         {/* NEXT RACE */}
-        <section className="col-span-12 relative overflow-hidden rounded-sm border p-8 md:p-10"
+        <section className="col-span-12 relative overflow-hidden rounded-sm border p-5 md:p-10"
           style={{ background: `linear-gradient(135deg, ${hexToRgba(primary, 0.2)} 0%, rgba(0,0,0,0.9) 80%)`, borderColor: hexToRgba(primary, 0.4) }}>
           <div className="stripe-bg absolute inset-0" />
           <div className="relative grid md:grid-cols-[1fr_auto] gap-8 items-center">
@@ -721,20 +724,20 @@ function Dashboard({ userName, driverCode, teamName, drivers: DRIVERS, construct
                 <span className="pulse-dot w-2 h-2 rounded-full" style={{ background: accent }} />
                 <span className="mono text-xs tracking-widest" style={{ color: accent }}>NEXT RACE · ROUND {nextRace.round}</span>
               </div>
-              <div className="bebas text-6xl md:text-8xl leading-none">
+              <div className="bebas text-5xl sm:text-6xl md:text-8xl leading-none break-words">
                 {nextRace.flag} {nextRace.name.replace(" Grand Prix", "")}
               </div>
-              <div className="bebas text-3xl text-white/50 mt-1">GRAND PRIX</div>
+              <div className="bebas text-2xl md:text-3xl text-white/50 mt-1">GRAND PRIX</div>
               <div className="mono text-sm text-white/60 mt-4">
                 {nextRace.circuit} · {nextRace.date}
                 {nextRace.sprint && <span className="ml-3 px-2 py-0.5 border text-xs" style={{ borderColor: accent, color: accent }}>SPRINT</span>}
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-1.5 md:gap-2 w-full md:w-auto">
               {[{v:cd.days,l:"DAYS"},{v:cd.hours,l:"HRS"},{v:cd.mins,l:"MIN"},{v:cd.secs,l:"SEC"}].map(({v,l}) => (
-                <div key={l} className="bg-black/70 border px-3 py-4 min-w-[70px] text-center" style={{ borderColor: hexToRgba(primary, 0.5) }}>
-                  <div className="display text-4xl md:text-5xl tabular-nums" style={{ color: primary }}>{String(v).padStart(2,"0")}</div>
-                  <div className="mono text-[10px] text-white/50 tracking-widest mt-1">{l}</div>
+                <div key={l} className="flex-1 md:flex-initial bg-black/70 border px-2 md:px-3 py-3 md:py-4 md:min-w-[70px] text-center" style={{ borderColor: hexToRgba(primary, 0.5) }}>
+                  <div className="display text-3xl md:text-5xl tabular-nums" style={{ color: primary }}>{String(v).padStart(2,"0")}</div>
+                  <div className="mono text-[9px] md:text-[10px] text-white/50 tracking-widest mt-1">{l}</div>
                 </div>
               ))}
             </div>
@@ -742,18 +745,18 @@ function Dashboard({ userName, driverCode, teamName, drivers: DRIVERS, construct
         </section>
 
         {/* DRIVER CARD */}
-        <section className="col-span-12 md:col-span-5 rounded-sm border p-6"
+        <section className="col-span-12 md:col-span-5 rounded-sm border p-4 md:p-6"
           style={{ background: `linear-gradient(160deg, ${hexToRgba(primary, 0.2)} 0%, rgba(0,0,0,0.85) 100%)`, borderColor: hexToRgba(accent, 0.5), boxShadow: `0 0 40px ${hexToRgba(accent, 0.1)}` }}>
-          <div className="flex items-start justify-between mb-4">
-            <div>
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="min-w-0 flex-1">
               <div className="mono text-xs tracking-widest" style={{ color: accent }}>YOUR DRIVER</div>
-              <div className="display text-4xl mt-1">{myDriver.name.toUpperCase()}</div>
-              <div className="bebas text-xl text-white/60">{myDriver.team.toUpperCase()} · {myDriver.nat}</div>
+              <div className="display text-2xl md:text-4xl mt-1 break-words">{myDriver.name.toUpperCase()}</div>
+              <div className="bebas text-base md:text-xl text-white/60">{myDriver.team.toUpperCase()} · {myDriver.nat}</div>
             </div>
-            <div className="display text-6xl" style={{ color: accent }}>{myDriver.number}</div>
+            <div className="display text-4xl md:text-6xl shrink-0" style={{ color: accent }}>{myDriver.number}</div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 mt-6">
+          <div className="grid grid-cols-3 gap-2 md:gap-3 mt-6">
             <Stat label="POSITION" value={`P${myDriver.pos}`} accent={accent} />
             <Stat label="POINTS" value={myDriver.points} />
             <Stat label="GAP TO P1" value={myDriver.pos === 1 ? "—" : `-${leader.points - myDriver.points}`} />
@@ -781,21 +784,21 @@ function Dashboard({ userName, driverCode, teamName, drivers: DRIVERS, construct
         </section>
 
         {/* TEAM CARD */}
-        <section className="col-span-12 md:col-span-7 rounded-sm border p-6"
+        <section className="col-span-12 md:col-span-7 rounded-sm border p-4 md:p-6"
           style={{ background: `linear-gradient(200deg, ${hexToRgba(primary, 0.25)} 0%, rgba(0,0,0,0.9) 70%)`, borderColor: hexToRgba(primary, 0.6) }}>
-          <div className="flex items-start justify-between mb-4">
-            <div>
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="min-w-0 flex-1">
               <div className="mono text-xs tracking-widest" style={{ color: primary }}>YOUR TEAM</div>
-              <div className="display text-4xl mt-1">{teamName.toUpperCase()}</div>
-              <div className="bebas text-xl text-white/60">{myTeamMeta.hq} · EST. {myTeamMeta.founded}</div>
+              <div className="display text-2xl md:text-4xl mt-1 break-words">{teamName.toUpperCase()}</div>
+              <div className="bebas text-base md:text-xl text-white/60 break-words">{myTeamMeta.hq} · EST. {myTeamMeta.founded}</div>
             </div>
-            <div className="text-right">
+            <div className="text-right shrink-0">
               <div className="mono text-[10px] text-white/40">CONSTRUCTORS</div>
-              <div className="display text-7xl" style={{ color: primary }}>P{myTeam.pos}</div>
+              <div className="display text-5xl md:text-7xl" style={{ color: primary }}>P{myTeam.pos}</div>
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-3 mt-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mt-4">
             <Stat label="POINTS" value={myTeam.points} accent={primary} />
             <Stat label="GAP TO P1" value={myTeam.pos === 1 ? "—" : `-${constructorLeader.points - myTeam.points}`} />
             <Stat label="PODIUMS" value={myTeam.podiums} />
@@ -828,7 +831,7 @@ function Dashboard({ userName, driverCode, teamName, drivers: DRIVERS, construct
         </section>
 
         {/* DRIVER STANDINGS */}
-        <section className="col-span-12 md:col-span-7 rounded-sm border border-white/10 bg-black/60 p-6">
+        <section className="col-span-12 md:col-span-7 rounded-sm border border-white/10 bg-black/60 p-4 md:p-6">
           <SectionTitle label="DRIVERS' CHAMPIONSHIP" count="TOP 10" primary={primary} />
           <div className="mt-4 space-y-1">
             {DRIVERS.slice(0, 10).map(d => {
@@ -838,7 +841,7 @@ function Dashboard({ userName, driverCode, teamName, drivers: DRIVERS, construct
               return (
                 <div
                   key={d.code}
-                  className={`grid grid-cols-[40px_1fr_100px_80px] items-center gap-3 px-3 py-2 transition-colors ${isMine ? "border-l-2" : ""}`}
+                  className={`grid grid-cols-[32px_1fr_60px] md:grid-cols-[40px_1fr_100px_80px] items-center gap-2 md:gap-3 px-2 md:px-3 py-2 transition-colors ${isMine ? "border-l-2" : ""}`}
                   style={{
                     background: isMine ? hexToRgba(accent, 0.1) : isMyTeam ? hexToRgba(primary, 0.08) : "transparent",
                     borderLeftColor: isMine ? accent : "transparent",
@@ -853,7 +856,7 @@ function Dashboard({ userName, driverCode, teamName, drivers: DRIVERS, construct
                     </div>
                     <div className="mono text-[10px] text-white/40">{d.team} · {d.nat}</div>
                   </div>
-                  <div className="h-2 bg-white/5 rounded-sm overflow-hidden">
+                  <div className="hidden md:block h-2 bg-white/5 rounded-sm overflow-hidden">
                     <div className="h-full" style={{ width: `${(d.points/leader.points)*100}%`, background: t.color }} />
                   </div>
                   <div className="display text-xl text-right tabular-nums" style={isMine ? { color: accent } : {}}>
@@ -866,7 +869,7 @@ function Dashboard({ userName, driverCode, teamName, drivers: DRIVERS, construct
         </section>
 
         {/* QUICK STATS SIDEBAR (replaces old side constructors list) */}
-        <section className="col-span-12 md:col-span-5 rounded-sm border border-white/10 bg-black/60 p-6">
+        <section className="col-span-12 md:col-span-5 rounded-sm border border-white/10 bg-black/60 p-4 md:p-6">
           <SectionTitle label="SEASON AT A GLANCE" count="2026" primary={primary} />
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Stat label="RACES RUN" value={COMPLETED_RACES.length} sub="OF 22" />
@@ -885,7 +888,7 @@ function Dashboard({ userName, driverCode, teamName, drivers: DRIVERS, construct
         </section>
 
         {/* ===== CONSTRUCTORS — COMPACT LIST WITH CLICK-TO-EXPAND ===== */}
-        <section className="col-span-12 rounded-sm border border-white/10 bg-black/60 p-6">
+        <section className="col-span-12 rounded-sm border border-white/10 bg-black/60 p-4 md:p-6">
           <SectionTitle label="CONSTRUCTORS' CHAMPIONSHIP" count="TAP ANY ROW FOR DETAILS" primary={primary} />
 
           {/* Collapsible bar chart toggle */}
@@ -910,7 +913,7 @@ function Dashboard({ userName, driverCode, teamName, drivers: DRIVERS, construct
         </section>
 
         {/* RACE RESULTS */}
-        <section className="col-span-12 rounded-sm border border-white/10 bg-black/60 p-6">
+        <section className="col-span-12 rounded-sm border border-white/10 bg-black/60 p-4 md:p-6">
           <SectionTitle label="COMPLETED RACES" count={`TAP TO EXPAND · ${COMPLETED_RACES.length} OF 22`} primary={primary} />
           <div className="mt-4 grid md:grid-cols-3 gap-4">
             {COMPLETED_RACES.map(race => (
@@ -929,7 +932,7 @@ function Dashboard({ userName, driverCode, teamName, drivers: DRIVERS, construct
         </section>
 
         {/* CALENDAR */}
-        <section className="col-span-12 rounded-sm border border-white/10 bg-black/60 p-6">
+        <section className="col-span-12 rounded-sm border border-white/10 bg-black/60 p-4 md:p-6">
           {(() => {
             const upcoming = UPCOMING_RACES.filter(r => !completedRounds.has(r.round));
             return (
@@ -938,7 +941,7 @@ function Dashboard({ userName, driverCode, teamName, drivers: DRIVERS, construct
                 <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                   {upcoming.map((r, i) => (
                     <div key={r.round}
-                      className="border p-3 transition hover:scale-[1.02]"
+                      className="border p-2 md:p-3 transition hover:scale-[1.02]"
                       style={{
                         borderColor: i === 0 ? primary : "rgba(255,255,255,0.1)",
                         background: i === 0 ? hexToRgba(primary, 0.1) : "transparent",
@@ -948,7 +951,7 @@ function Dashboard({ userName, driverCode, teamName, drivers: DRIVERS, construct
                         {i === 0 && <span className="mono text-[10px]" style={{ color: primary }}>NEXT</span>}
                         {r.sprint && i !== 0 && <span className="mono text-[10px]" style={{ color: accent }}>SPR</span>}
                       </div>
-                      <div className="bebas text-base mt-1 leading-tight">{r.flag} {r.name.replace(" Grand Prix","")}</div>
+                      <div className="bebas text-sm md:text-base mt-1 leading-tight break-words">{r.flag} {r.name.replace(" Grand Prix","")}</div>
                       <div className="mono text-[10px] text-white/40 mt-1">{r.date}</div>
                     </div>
                   ))}
@@ -975,19 +978,19 @@ function Dashboard({ userName, driverCode, teamName, drivers: DRIVERS, construct
 
 function Stat({ label, value, sub, accent }) {
   return (
-    <div className="border border-white/10 p-3 bg-black/40">
-      <div className="mono text-[10px] text-white/40 tracking-widest">{label}</div>
-      <div className="display text-3xl tabular-nums mt-1" style={{ color: accent || "white" }}>{value}</div>
-      {sub && <div className="mono text-[10px] text-white/40 mt-0.5">{sub}</div>}
+    <div className="border border-white/10 p-2 md:p-3 bg-black/40 min-w-0">
+      <div className="mono text-[10px] text-white/40 tracking-widest truncate">{label}</div>
+      <div className="display text-2xl md:text-3xl tabular-nums mt-1 break-words" style={{ color: accent || "white" }}>{value}</div>
+      {sub && <div className="mono text-[10px] text-white/40 mt-0.5 truncate">{sub}</div>}
     </div>
   );
 }
 
 function SectionTitle({ label, count, primary }) {
   return (
-    <div className="flex items-end justify-between border-b pb-2" style={{ borderColor: hexToRgba(primary || "#ffffff", 0.3) }}>
-      <div className="bebas text-2xl">{label}</div>
-      <div className="mono text-[10px] text-white/40 tracking-widest">{count}</div>
+    <div className="flex items-end justify-between gap-2 border-b pb-2" style={{ borderColor: hexToRgba(primary || "#ffffff", 0.3) }}>
+      <div className="bebas text-xl md:text-2xl">{label}</div>
+      <div className="mono text-[9px] md:text-[10px] text-white/40 tracking-widest text-right shrink-0">{count}</div>
     </div>
   );
 }
